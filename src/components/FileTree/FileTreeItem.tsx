@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { Component, Show, For, createMemo } from 'solid-js';
+import { Dynamic } from 'solid-js/web';
 import type { FileNode } from '../../types';
 import { fileStore } from '../../stores';
 import { formatFileSize, formatDate } from '../../utils/fileTypes';
@@ -89,7 +90,7 @@ export const FileTreeItem: Component<FileTreeItemProps> = (props) => {
             isFolder() ? 'text-amber-400' : 'text-dark-400'
           )}
         >
-          <FileTypeIcon size={18} />
+          <Dynamic component={FileTypeIcon()} size={18} />
         </span>
 
         {/* File name */}
