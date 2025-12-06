@@ -2,7 +2,7 @@
 // MainLayout Component - Two-column responsive layout with resizable panels
 // ============================================================================
 
-import { Component, createSignal, Show, onMount, onCleanup } from 'solid-js';
+import { Component, createSignal, Show, createEffect, onCleanup } from 'solid-js';
 import { Header } from './Header';
 import { FileTree } from '../FileTree';
 import { PreviewPanel } from '../Preview';
@@ -11,67 +11,57 @@ import { FolderIcon, LayoutIcon, MessageCircleIcon } from '../Common/Icons';
 import { cn } from '../../utils/helpers';
 
 type MobileTab = 'files' | 'preview' | 'chat';
+type DragType = 'none' | 'vertical' | 'horizontal';
 
 export const MainLayout: Component = () => {
   const [mobileTab, setMobileTab] = createSignal<MobileTab>('files');
 
   // Panel sizes (percentages for flexibility)
-  const [leftColumnWidth, setLeftColumnWidth] = createSignal(50); // % of total width
-  const [filesHeight, setFilesHeight] = createSignal(60); // % of left column height
+  const [leftColumnWidth, setLeftColumnWidth] = createSignal(50);
+  const [filesHeight, setFilesHeight] = createSignal(60);
 
   // Drag state
-  const [isDraggingVertical, setIsDraggingVertical] = createSignal(false);
-  const [isDraggingHorizontal, setIsDraggingHorizontal] = createSignal(false);
+  const [dragType, setDragType] = createSignal<DragType>('none');
 
-  let containerRef: HTMLDivElement | undefined;
+  // Refs
+  let desktopContainerRef: HTMLDivElement | undefined;
   let leftColumnRef: HTMLDivElement | undefined;
 
-  // Handle vertical divider drag (between left and right columns)
-  const handleVerticalDragStart = (e: MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDraggingVertical(true);
-  };
+  // Mouse move handler
+  const onMouseMove = (e: MouseEvent) => {
+    const currentDrag = dragType();
 
-  // Handle horizontal divider drag (between files and preview)
-  const handleHorizontalDragStart = (e: MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDraggingHorizontal(true);
-  };
-
-  const handleMouseMove = (e: MouseEvent) => {
-    const container = containerRef;
-    const leftColumn = leftColumnRef;
-
-    if (isDraggingVertical() && container) {
-      const containerRect = container.getBoundingClientRect();
-      const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
-      // Clamp between 25% and 75%
-      setLeftColumnWidth(Math.max(25, Math.min(75, newWidth)));
+    if (currentDrag === 'vertical' && desktopContainerRef) {
+      const rect = desktopContainerRef.getBoundingClientRect();
+      const percentage = ((e.clientX - rect.left) / rect.width) * 100;
+      setLeftColumnWidth(Math.max(25, Math.min(75, percentage)));
     }
 
-    if (isDraggingHorizontal() && leftColumn) {
-      const leftRect = leftColumn.getBoundingClientRect();
-      const newHeight = ((e.clientY - leftRect.top) / leftRect.height) * 100;
-      // Clamp between 20% and 80%
-      setFilesHeight(Math.max(20, Math.min(80, newHeight)));
+    if (currentDrag === 'horizontal' && leftColumnRef) {
+      const rect = leftColumnRef.getBoundingClientRect();
+      const percentage = ((e.clientY - rect.top) / rect.height) * 100;
+      setFilesHeight(Math.max(20, Math.min(80, percentage)));
     }
   };
 
-  const handleMouseUp = () => {
-    setIsDraggingVertical(false);
-    setIsDraggingHorizontal(false);
+  // Mouse up handler
+  const onMouseUp = () => {
+    setDragType('none');
   };
 
-  onMount(() => {
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-  });
+  // Set up global event listeners when dragging starts
+  createEffect(() => {
+    const currentDrag = dragType();
 
-  onCleanup(() => {
-    window.removeEventListener('mousemove', handleMouseMove);
-    window.removeEventListener('mouseup', handleMouseUp);
+    if (currentDrag !== 'none') {
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+
+      onCleanup(() => {
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      });
+    }
   });
 
   // Mobile tab navigation
@@ -100,24 +90,27 @@ export const MainLayout: Component = () => {
     </div>
   );
 
+  const isDragging = () => dragType() !== 'none';
+
   return (
     <div class="h-screen flex flex-col bg-dark-950 overflow-hidden">
       {/* Header */}
       <Header />
 
       {/* Main content area */}
-      <div
-        ref={(el) => (containerRef = el)}
-        class={cn(
-          "flex-1 flex overflow-hidden",
-          (isDraggingVertical() || isDraggingHorizontal()) && "select-none cursor-grabbing"
-        )}
-      >
+      <div class="flex-1 flex overflow-hidden">
         {/* Desktop: Two-column layout */}
-        <div class="hidden md:flex flex-1">
+        <div
+          ref={desktopContainerRef}
+          class={cn(
+            "hidden md:flex flex-1",
+            isDragging() && "select-none"
+          )}
+          style={{ cursor: dragType() === 'vertical' ? 'col-resize' : dragType() === 'horizontal' ? 'row-resize' : 'auto' }}
+        >
           {/* Left column: Files + Preview (stacked) */}
           <div
-            ref={(el) => (leftColumnRef = el)}
+            ref={leftColumnRef}
             class="flex flex-col overflow-hidden"
             style={{ width: `${leftColumnWidth()}%` }}
           >
@@ -132,25 +125,17 @@ export const MainLayout: Component = () => {
             {/* Horizontal resize handle */}
             <div
               class={cn(
-                "h-2 bg-dark-800 hover:bg-accent-primary/50 cursor-row-resize transition-colors flex-shrink-0 group",
-                isDraggingHorizontal() && "bg-accent-primary"
+                "h-1 bg-dark-700 cursor-row-resize transition-colors flex-shrink-0 hover:bg-accent-primary",
+                dragType() === 'horizontal' && "bg-accent-primary"
               )}
-              onMouseDown={handleHorizontalDragStart}
-            >
-              <div class="h-full w-full flex items-center justify-center">
-                <div class={cn(
-                  "w-12 h-1 bg-dark-600 rounded-full transition-colors",
-                  "group-hover:bg-accent-primary/70",
-                  isDraggingHorizontal() && "bg-accent-primary"
-                )} />
-              </div>
-            </div>
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setDragType('horizontal');
+              }}
+            />
 
             {/* Preview panel (bottom) */}
-            <div
-              class="flex-1 overflow-hidden"
-              style={{ height: `${100 - filesHeight()}%` }}
-            >
+            <div class="flex-1 overflow-hidden">
               <PreviewPanel />
             </div>
           </div>
@@ -158,25 +143,17 @@ export const MainLayout: Component = () => {
           {/* Vertical resize handle */}
           <div
             class={cn(
-              "w-2 bg-dark-800 hover:bg-accent-primary/50 cursor-col-resize transition-colors flex-shrink-0 group",
-              isDraggingVertical() && "bg-accent-primary"
+              "w-1 bg-dark-700 cursor-col-resize transition-colors flex-shrink-0 hover:bg-accent-primary",
+              dragType() === 'vertical' && "bg-accent-primary"
             )}
-            onMouseDown={handleVerticalDragStart}
-          >
-            <div class="h-full w-full flex items-center justify-center">
-              <div class={cn(
-                "h-12 w-1 bg-dark-600 rounded-full transition-colors",
-                "group-hover:bg-accent-primary/70",
-                isDraggingVertical() && "bg-accent-primary"
-              )} />
-            </div>
-          </div>
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setDragType('vertical');
+            }}
+          />
 
           {/* Right column: Chat */}
-          <div
-            class="flex-1 overflow-hidden"
-            style={{ width: `${100 - leftColumnWidth()}%` }}
-          >
+          <div class="flex-1 overflow-hidden">
             <ChatPanel />
           </div>
         </div>
