@@ -30,7 +30,21 @@ export const MainLayout: Component = () => {
   const [isDragging, setIsDragging] = createSignal(false);
   const [dragDirection, setDragDirection] = createSignal<'none' | 'vertical' | 'horizontal'>('none');
 
-  const startVerticalDrag = (e: MouseEvent) => {
+  // Helper to get coordinates from mouse or touch event
+  const getEventCoords = (e: MouseEvent | TouchEvent): { clientX: number; clientY: number } | null => {
+    if ('touches' in e) {
+      if (e.touches.length > 0) {
+        return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+      }
+      if (e.changedTouches && e.changedTouches.length > 0) {
+        return { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
+      }
+      return null;
+    }
+    return { clientX: e.clientX, clientY: e.clientY };
+  };
+
+  const startVerticalDrag = (e: MouseEvent | TouchEvent) => {
     e.preventDefault();
     // Use currentTarget (the element with the listener) and get its parent (the main flex container)
     const container = (e.currentTarget as HTMLElement).parentElement;
@@ -42,10 +56,13 @@ export const MainLayout: Component = () => {
 
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleMouseMove, { passive: false });
+      document.addEventListener('touchend', handleMouseUp);
+      document.addEventListener('touchcancel', handleMouseUp);
     }
   };
 
-  const startHorizontalDrag = (e: MouseEvent) => {
+  const startHorizontalDrag = (e: MouseEvent | TouchEvent) => {
     e.preventDefault();
     // Use currentTarget (the element with the listener) and get its parent (the left column)
     const leftColumn = (e.currentTarget as HTMLElement).parentElement;
@@ -57,19 +74,26 @@ export const MainLayout: Component = () => {
 
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleMouseMove, { passive: false });
+      document.addEventListener('touchend', handleMouseUp);
+      document.addEventListener('touchcancel', handleMouseUp);
     }
   };
 
-  const handleMouseMove = (e: MouseEvent) => {
+  const handleMouseMove = (e: MouseEvent | TouchEvent) => {
+    e.preventDefault();
+    const coords = getEventCoords(e);
+    if (!coords) return;
+
     if (dragState.type === 'vertical' && dragState.containerRect) {
       const rect = dragState.containerRect;
-      const percentage = ((e.clientX - rect.left) / rect.width) * 100;
+      const percentage = ((coords.clientX - rect.left) / rect.width) * 100;
       setLeftColumnWidth(Math.max(25, Math.min(75, percentage)));
     }
 
     if (dragState.type === 'horizontal' && dragState.leftColumnRect) {
       const rect = dragState.leftColumnRect;
-      const percentage = ((e.clientY - rect.top) / rect.height) * 100;
+      const percentage = ((coords.clientY - rect.top) / rect.height) * 100;
       setFilesHeight(Math.max(20, Math.min(80, percentage)));
     }
   };
@@ -83,6 +107,9 @@ export const MainLayout: Component = () => {
 
     document.removeEventListener('mousemove', handleMouseMove);
     document.removeEventListener('mouseup', handleMouseUp);
+    document.removeEventListener('touchmove', handleMouseMove);
+    document.removeEventListener('touchend', handleMouseUp);
+    document.removeEventListener('touchcancel', handleMouseUp);
   };
 
   // Mobile tab navigation
@@ -145,10 +172,12 @@ export const MainLayout: Component = () => {
             {/* Horizontal resize handle */}
             <div
               class={cn(
-                "h-1 bg-dark-700 cursor-row-resize transition-colors flex-shrink-0 flex items-center justify-center group hover:bg-accent-primary/50",
+                "h-2 bg-dark-700 cursor-row-resize transition-colors flex-shrink-0 flex items-center justify-center group hover:bg-accent-primary/50",
                 dragDirection() === 'horizontal' && "bg-accent-primary"
               )}
+              style={{ "touch-action": "none" }}
               onMouseDown={startHorizontalDrag}
+              onTouchStart={startHorizontalDrag}
             >
               <div class={cn(
                 "w-8 h-0.5 bg-dark-500 rounded-full group-hover:bg-white/50",
@@ -165,10 +194,12 @@ export const MainLayout: Component = () => {
           {/* Vertical resize handle */}
           <div
             class={cn(
-              "w-1 bg-dark-700 cursor-col-resize transition-colors flex-shrink-0 flex items-center justify-center group hover:bg-accent-primary/50",
+              "w-2 bg-dark-700 cursor-col-resize transition-colors flex-shrink-0 flex items-center justify-center group hover:bg-accent-primary/50",
               dragDirection() === 'vertical' && "bg-accent-primary"
             )}
+            style={{ "touch-action": "none" }}
             onMouseDown={startVerticalDrag}
+            onTouchStart={startVerticalDrag}
           >
             <div class={cn(
               "h-8 w-0.5 bg-dark-500 rounded-full group-hover:bg-white/50",
