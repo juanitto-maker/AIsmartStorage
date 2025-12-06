@@ -1,0 +1,7 @@
+# Smart Storage AI - robots.txt
+
+User-agent: *
+Allow: /
+
+# Sitemap location (update with your domain)
+# Sitemap: https://your-domain.com/sitemap.xml

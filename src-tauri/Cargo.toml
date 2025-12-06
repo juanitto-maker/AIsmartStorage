@@ -1,0 +1,40 @@
+[package]
+name = "smart-storage-ai"
+version = "0.1.0"
+description = "Privacy-first AI file organizer"
+authors = ["Smart Storage AI Contributors"]
+license = "MIT"
+repository = "https://github.com/juanitto-maker/AIsmartStorage"
+edition = "2021"
+rust-version = "1.70"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = ["shell-open"] }
+tauri-plugin-shell = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+thiserror = "1.0"
+walkdir = "2.4"
+mime_guess = "2.0"
+lazy_static = "1.4"
+
+# Optional: For future AI integration
+# ort = "2.0"  # ONNX Runtime
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

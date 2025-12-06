@@ -1,0 +1,192 @@
+/* ============================================================================
+   Smart Storage AI - Global Styles
+   ============================================================================ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-dark-950 text-dark-100;
+    overflow: hidden;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-dark-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-dark-700 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-dark-600;
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 #0f172a;
+  }
+
+  /* Selection */
+  ::selection {
+    @apply bg-accent-primary/30 text-white;
+  }
+}
+
+/* Component styles */
+@layer components {
+  /* Custom button styles */
+  .btn-primary {
+    @apply px-4 py-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-lg font-medium transition-colors;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 bg-dark-700 hover:bg-dark-600 text-dark-200 rounded-lg font-medium transition-colors;
+  }
+
+  /* Card styles */
+  .card {
+    @apply bg-dark-800 border border-dark-700 rounded-lg;
+  }
+
+  /* Input styles */
+  .input {
+    @apply w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-100 placeholder-dark-500 focus:outline-none focus:border-accent-primary/50 focus:ring-1 focus:ring-accent-primary/25 transition-colors;
+  }
+
+  /* Badge styles */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply bg-accent-success/20 text-accent-success;
+  }
+
+  .badge-warning {
+    @apply bg-accent-warning/20 text-accent-warning;
+  }
+
+  .badge-danger {
+    @apply bg-accent-danger/20 text-accent-danger;
+  }
+
+  .badge-info {
+    @apply bg-accent-info/20 text-accent-info;
+  }
+}
+
+/* Utility styles */
+@layer utilities {
+  /* Background blur for glassmorphism */
+  .glass {
+    @apply bg-dark-900/80 backdrop-blur-xl;
+  }
+
+  /* Text gradients */
+  .text-gradient {
+    @apply bg-gradient-to-r from-accent-primary to-accent-secondary bg-clip-text text-transparent;
+  }
+
+  /* Glow effects */
+  .glow-primary {
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+  }
+
+  .glow-success {
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+  }
+
+  /* Animation helpers */
+  .animate-in {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  /* Dark backgrounds */
+  .bg-dark-750 {
+    background-color: #273449;
+  }
+
+  .bg-dark-850 {
+    background-color: #141c2b;
+  }
+}
+
+/* Keyframe animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Bounce animation for typing indicator */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  body {
+    /* Prevent overscroll on iOS */
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Adjust padding for mobile */
+  .mobile-safe-area {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Print styles */
+@media print {
+  body {
+    @apply bg-white text-black;
+  }
+}

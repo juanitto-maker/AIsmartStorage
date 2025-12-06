@@ -277,24 +277,52 @@ Everything in Community, plus:
 
 ---
 
+## 🌐 Live Demo
+
+Try Smart Storage AI in your browser:
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/juanitto-maker/AIsmartStorage)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/juanitto-maker/AIsmartStorage)
+
+---
+
 ## 🛠️ Building from Source
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) (latest stable)
 - [Node.js](https://nodejs.org/) (v18+)
+- [Rust](https://rustup.rs/) (latest stable) - for native builds only
 - [Android Studio](https://developer.android.com/studio) (for Android builds)
 
-### Build
+### Quick Start (Web Demo)
 
 ```bash
 # Clone repository
-git clone https://github.com/[username]/smart-storage-ai
-cd smart-storage-ai
+git clone https://github.com/juanitto-maker/AIsmartStorage
+cd AIsmartStorage
 
 # Install dependencies
 npm install
 
+# Start development server
+npm run dev
+
+# Open http://localhost:3000
+```
+
+### Build for Production
+
+```bash
+# Build web version
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+### Native App (Tauri)
+
+```bash
 # Development (desktop)
 npm run tauri dev
 
@@ -365,7 +393,7 @@ git push origin feature/your-feature
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| 1. Foundation | 🔲 | File browser, preview, undo |
+| 1. Foundation | ✅ | File browser, preview, undo |
 | 2. AI Chat | 🔲 | Natural language with SmolLM |
 | 3. Content | 🔲 | PDF/DOCX extraction, search |
 | 4. TRM | 🔲 | Smart organization reasoning |
