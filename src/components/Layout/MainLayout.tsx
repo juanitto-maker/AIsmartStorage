@@ -2,7 +2,7 @@
 // MainLayout Component - Two-column responsive layout with resizable panels
 // ============================================================================
 
-import { Component, createSignal, Show, createEffect, onCleanup } from 'solid-js';
+import { Component, createSignal, Show } from 'solid-js';
 import { Header } from './Header';
 import { FileTree } from '../FileTree';
 import { PreviewPanel } from '../Preview';
@@ -11,58 +11,79 @@ import { FolderIcon, LayoutIcon, MessageCircleIcon } from '../Common/Icons';
 import { cn } from '../../utils/helpers';
 
 type MobileTab = 'files' | 'preview' | 'chat';
-type DragType = 'none' | 'vertical' | 'horizontal';
 
 export const MainLayout: Component = () => {
   const [mobileTab, setMobileTab] = createSignal<MobileTab>('files');
 
-  // Panel sizes (percentages for flexibility)
+  // Panel sizes (percentages)
   const [leftColumnWidth, setLeftColumnWidth] = createSignal(50);
   const [filesHeight, setFilesHeight] = createSignal(60);
 
-  // Drag state
-  const [dragType, setDragType] = createSignal<DragType>('none');
+  // Drag state stored in a mutable object (not reactive, just for tracking)
+  const dragState = {
+    type: 'none' as 'none' | 'vertical' | 'horizontal',
+    containerRect: null as DOMRect | null,
+    leftColumnRect: null as DOMRect | null,
+  };
 
-  // Refs
-  let desktopContainerRef: HTMLDivElement | undefined;
-  let leftColumnRef: HTMLDivElement | undefined;
+  // Force re-render for drag visual feedback
+  const [isDragging, setIsDragging] = createSignal(false);
+  const [dragDirection, setDragDirection] = createSignal<'none' | 'vertical' | 'horizontal'>('none');
 
-  // Mouse move handler
-  const onMouseMove = (e: MouseEvent) => {
-    const currentDrag = dragType();
+  const startVerticalDrag = (e: MouseEvent) => {
+    e.preventDefault();
+    // Use currentTarget (the element with the listener) and get its parent (the main flex container)
+    const container = (e.currentTarget as HTMLElement).parentElement;
+    if (container) {
+      dragState.type = 'vertical';
+      dragState.containerRect = container.getBoundingClientRect();
+      setIsDragging(true);
+      setDragDirection('vertical');
 
-    if (currentDrag === 'vertical' && desktopContainerRef) {
-      const rect = desktopContainerRef.getBoundingClientRect();
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+  };
+
+  const startHorizontalDrag = (e: MouseEvent) => {
+    e.preventDefault();
+    // Use currentTarget (the element with the listener) and get its parent (the left column)
+    const leftColumn = (e.currentTarget as HTMLElement).parentElement;
+    if (leftColumn) {
+      dragState.type = 'horizontal';
+      dragState.leftColumnRect = leftColumn.getBoundingClientRect();
+      setIsDragging(true);
+      setDragDirection('horizontal');
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (dragState.type === 'vertical' && dragState.containerRect) {
+      const rect = dragState.containerRect;
       const percentage = ((e.clientX - rect.left) / rect.width) * 100;
       setLeftColumnWidth(Math.max(25, Math.min(75, percentage)));
     }
 
-    if (currentDrag === 'horizontal' && leftColumnRef) {
-      const rect = leftColumnRef.getBoundingClientRect();
+    if (dragState.type === 'horizontal' && dragState.leftColumnRect) {
+      const rect = dragState.leftColumnRect;
       const percentage = ((e.clientY - rect.top) / rect.height) * 100;
       setFilesHeight(Math.max(20, Math.min(80, percentage)));
     }
   };
 
-  // Mouse up handler
-  const onMouseUp = () => {
-    setDragType('none');
+  const handleMouseUp = () => {
+    dragState.type = 'none';
+    dragState.containerRect = null;
+    dragState.leftColumnRect = null;
+    setIsDragging(false);
+    setDragDirection('none');
+
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
   };
-
-  // Set up global event listeners when dragging starts
-  createEffect(() => {
-    const currentDrag = dragType();
-
-    if (currentDrag !== 'none') {
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-
-      onCleanup(() => {
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-      });
-    }
-  });
 
   // Mobile tab navigation
   const MobileNav: Component = () => (
@@ -90,8 +111,6 @@ export const MainLayout: Component = () => {
     </div>
   );
 
-  const isDragging = () => dragType() !== 'none';
-
   return (
     <div class="h-screen flex flex-col bg-dark-950 overflow-hidden">
       {/* Header */}
@@ -101,16 +120,17 @@ export const MainLayout: Component = () => {
       <div class="flex-1 flex overflow-hidden">
         {/* Desktop: Two-column layout */}
         <div
-          ref={desktopContainerRef}
           class={cn(
             "hidden md:flex flex-1",
             isDragging() && "select-none"
           )}
-          style={{ cursor: dragType() === 'vertical' ? 'col-resize' : dragType() === 'horizontal' ? 'row-resize' : 'auto' }}
+          style={{
+            cursor: dragDirection() === 'vertical' ? 'col-resize' :
+                   dragDirection() === 'horizontal' ? 'row-resize' : 'auto'
+          }}
         >
           {/* Left column: Files + Preview (stacked) */}
           <div
-            ref={leftColumnRef}
             class="flex flex-col overflow-hidden"
             style={{ width: `${leftColumnWidth()}%` }}
           >
@@ -125,14 +145,16 @@ export const MainLayout: Component = () => {
             {/* Horizontal resize handle */}
             <div
               class={cn(
-                "h-1 bg-dark-700 cursor-row-resize transition-colors flex-shrink-0 hover:bg-accent-primary",
-                dragType() === 'horizontal' && "bg-accent-primary"
+                "h-1 bg-dark-700 cursor-row-resize transition-colors flex-shrink-0 flex items-center justify-center group hover:bg-accent-primary/50",
+                dragDirection() === 'horizontal' && "bg-accent-primary"
               )}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                setDragType('horizontal');
-              }}
-            />
+              onMouseDown={startHorizontalDrag}
+            >
+              <div class={cn(
+                "w-8 h-0.5 bg-dark-500 rounded-full group-hover:bg-white/50",
+                dragDirection() === 'horizontal' && "bg-white"
+              )} />
+            </div>
 
             {/* Preview panel (bottom) */}
             <div class="flex-1 overflow-hidden">
@@ -143,14 +165,16 @@ export const MainLayout: Component = () => {
           {/* Vertical resize handle */}
           <div
             class={cn(
-              "w-1 bg-dark-700 cursor-col-resize transition-colors flex-shrink-0 hover:bg-accent-primary",
-              dragType() === 'vertical' && "bg-accent-primary"
+              "w-1 bg-dark-700 cursor-col-resize transition-colors flex-shrink-0 flex items-center justify-center group hover:bg-accent-primary/50",
+              dragDirection() === 'vertical' && "bg-accent-primary"
             )}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              setDragType('vertical');
-            }}
-          />
+            onMouseDown={startVerticalDrag}
+          >
+            <div class={cn(
+              "h-8 w-0.5 bg-dark-500 rounded-full group-hover:bg-white/50",
+              dragDirection() === 'vertical' && "bg-white"
+            )} />
+          </div>
 
           {/* Right column: Chat */}
           <div class="flex-1 overflow-hidden">
