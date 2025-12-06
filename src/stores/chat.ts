@@ -82,11 +82,11 @@ async function handleIntent(intent: ParsedIntent): Promise<void> {
       break;
 
     case 'search':
-      handleSearchIntent(intent);
+      await handleSearchIntent(intent);
       break;
 
     case 'analyze':
-      handleAnalyzeIntent();
+      await handleAnalyzeIntent();
       break;
 
     case 'help':
@@ -224,8 +224,8 @@ async function handleUndoIntent(): Promise<void> {
 /**
  * Handle search intent
  */
-function handleSearchIntent(intent: ParsedIntent): void {
-  const { fileStore } = require('./files');
+async function handleSearchIntent(intent: ParsedIntent): Promise<void> {
+  const { fileStore } = await import('./files');
   const query = intent.entities.query || '';
 
   if (query) {
@@ -260,8 +260,8 @@ function countFiles(nodes: any[]): number {
 /**
  * Handle analyze intent
  */
-function handleAnalyzeIntent(): void {
-  const { fileStore } = require('./files');
+async function handleAnalyzeIntent(): Promise<void> {
+  const { fileStore } = await import('./files');
   const stats = fileStore.stats();
 
   let response = `**Storage Analysis:**\n\n`;
