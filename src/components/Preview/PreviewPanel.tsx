@@ -42,7 +42,7 @@ export const PreviewPanel: Component = () => {
   const canUndo = () => historyStore.canUndo();
 
   return (
-    <div class="flex flex-col h-full bg-dark-900 border-t border-dark-700">
+    <div class="flex flex-col h-full bg-dark-900">
       {/* Header */}
       <div class="flex-shrink-0 p-3 border-b border-dark-700">
         <div class="flex items-center justify-between">

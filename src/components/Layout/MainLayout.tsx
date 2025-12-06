@@ -1,8 +1,8 @@
 // ============================================================================
-// MainLayout Component - Three-panel responsive layout
+// MainLayout Component - Two-column responsive layout with resizable panels
 // ============================================================================
 
-import { Component, createSignal, Show } from 'solid-js';
+import { Component, createSignal, Show, onMount, onCleanup } from 'solid-js';
 import { Header } from './Header';
 import { FileTree } from '../FileTree';
 import { PreviewPanel } from '../Preview';
@@ -14,8 +14,65 @@ type MobileTab = 'files' | 'preview' | 'chat';
 
 export const MainLayout: Component = () => {
   const [mobileTab, setMobileTab] = createSignal<MobileTab>('files');
-  const [leftPanelWidth, setLeftPanelWidth] = createSignal(320);
-  const [rightPanelWidth, setRightPanelWidth] = createSignal(380);
+
+  // Panel sizes (percentages for flexibility)
+  const [leftColumnWidth, setLeftColumnWidth] = createSignal(50); // % of total width
+  const [filesHeight, setFilesHeight] = createSignal(60); // % of left column height
+
+  // Drag state
+  const [isDraggingVertical, setIsDraggingVertical] = createSignal(false);
+  const [isDraggingHorizontal, setIsDraggingHorizontal] = createSignal(false);
+
+  let containerRef: HTMLDivElement | undefined;
+
+  // Handle vertical divider drag (between left and right columns)
+  const handleVerticalDragStart = (e: MouseEvent) => {
+    e.preventDefault();
+    setIsDraggingVertical(true);
+  };
+
+  // Handle horizontal divider drag (between files and preview)
+  const handleHorizontalDragStart = (e: MouseEvent) => {
+    e.preventDefault();
+    setIsDraggingHorizontal(true);
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!containerRef) return;
+
+    const containerRect = containerRef.getBoundingClientRect();
+
+    if (isDraggingVertical()) {
+      const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+      // Clamp between 25% and 75%
+      setLeftColumnWidth(Math.max(25, Math.min(75, newWidth)));
+    }
+
+    if (isDraggingHorizontal()) {
+      const leftColumn = containerRef.querySelector('[data-left-column]') as HTMLElement;
+      if (leftColumn) {
+        const leftRect = leftColumn.getBoundingClientRect();
+        const newHeight = ((e.clientY - leftRect.top) / leftRect.height) * 100;
+        // Clamp between 20% and 80%
+        setFilesHeight(Math.max(20, Math.min(80, newHeight)));
+      }
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDraggingVertical(false);
+    setIsDraggingHorizontal(false);
+  };
+
+  onMount(() => {
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  });
+
+  onCleanup(() => {
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+  });
 
   // Mobile tab navigation
   const MobileNav: Component = () => (
@@ -49,26 +106,68 @@ export const MainLayout: Component = () => {
       <Header />
 
       {/* Main content area */}
-      <div class="flex-1 flex overflow-hidden">
-        {/* Desktop: Three-panel layout */}
+      <div
+        ref={containerRef}
+        class={cn(
+          "flex-1 flex overflow-hidden",
+          (isDraggingVertical() || isDraggingHorizontal()) && "select-none"
+        )}
+      >
+        {/* Desktop: Two-column layout */}
         <div class="hidden md:flex flex-1">
-          {/* Left panel: File browser */}
+          {/* Left column: Files + Preview (stacked) */}
           <div
-            class="flex-shrink-0 overflow-hidden"
-            style={{ width: `${leftPanelWidth()}px` }}
+            data-left-column
+            class="flex flex-col overflow-hidden"
+            style={{ width: `${leftColumnWidth()}%` }}
           >
-            <FileTree />
+            {/* Files panel (top) */}
+            <div
+              class="overflow-hidden"
+              style={{ height: `${filesHeight()}%` }}
+            >
+              <FileTree />
+            </div>
+
+            {/* Horizontal resize handle */}
+            <div
+              class={cn(
+                "h-1 bg-dark-700 hover:bg-accent-primary/50 cursor-row-resize transition-colors flex-shrink-0",
+                isDraggingHorizontal() && "bg-accent-primary"
+              )}
+              onMouseDown={handleHorizontalDragStart}
+            >
+              <div class="h-full w-full flex items-center justify-center">
+                <div class="w-8 h-0.5 bg-dark-500 rounded-full" />
+              </div>
+            </div>
+
+            {/* Preview panel (bottom) */}
+            <div
+              class="flex-1 overflow-hidden"
+              style={{ height: `${100 - filesHeight()}%` }}
+            >
+              <PreviewPanel />
+            </div>
           </div>
 
-          {/* Center panel: Preview (flexible) */}
-          <div class="flex-1 flex flex-col overflow-hidden min-w-[300px]">
-            <PreviewPanel />
-          </div>
-
-          {/* Right panel: Chat */}
+          {/* Vertical resize handle */}
           <div
-            class="flex-shrink-0 overflow-hidden"
-            style={{ width: `${rightPanelWidth()}px` }}
+            class={cn(
+              "w-1 bg-dark-700 hover:bg-accent-primary/50 cursor-col-resize transition-colors flex-shrink-0",
+              isDraggingVertical() && "bg-accent-primary"
+            )}
+            onMouseDown={handleVerticalDragStart}
+          >
+            <div class="h-full w-full flex items-center justify-center">
+              <div class="h-8 w-0.5 bg-dark-500 rounded-full" />
+            </div>
+          </div>
+
+          {/* Right column: Chat */}
+          <div
+            class="flex-1 overflow-hidden"
+            style={{ width: `${100 - leftColumnWidth()}%` }}
           >
             <ChatPanel />
           </div>
