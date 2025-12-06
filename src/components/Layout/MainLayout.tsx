@@ -24,38 +24,38 @@ export const MainLayout: Component = () => {
   const [isDraggingHorizontal, setIsDraggingHorizontal] = createSignal(false);
 
   let containerRef: HTMLDivElement | undefined;
+  let leftColumnRef: HTMLDivElement | undefined;
 
   // Handle vertical divider drag (between left and right columns)
   const handleVerticalDragStart = (e: MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDraggingVertical(true);
   };
 
   // Handle horizontal divider drag (between files and preview)
   const handleHorizontalDragStart = (e: MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDraggingHorizontal(true);
   };
 
   const handleMouseMove = (e: MouseEvent) => {
-    if (!containerRef) return;
+    const container = containerRef;
+    const leftColumn = leftColumnRef;
 
-    const containerRect = containerRef.getBoundingClientRect();
-
-    if (isDraggingVertical()) {
+    if (isDraggingVertical() && container) {
+      const containerRect = container.getBoundingClientRect();
       const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
       // Clamp between 25% and 75%
       setLeftColumnWidth(Math.max(25, Math.min(75, newWidth)));
     }
 
-    if (isDraggingHorizontal()) {
-      const leftColumn = containerRef.querySelector('[data-left-column]') as HTMLElement;
-      if (leftColumn) {
-        const leftRect = leftColumn.getBoundingClientRect();
-        const newHeight = ((e.clientY - leftRect.top) / leftRect.height) * 100;
-        // Clamp between 20% and 80%
-        setFilesHeight(Math.max(20, Math.min(80, newHeight)));
-      }
+    if (isDraggingHorizontal() && leftColumn) {
+      const leftRect = leftColumn.getBoundingClientRect();
+      const newHeight = ((e.clientY - leftRect.top) / leftRect.height) * 100;
+      // Clamp between 20% and 80%
+      setFilesHeight(Math.max(20, Math.min(80, newHeight)));
     }
   };
 
@@ -65,13 +65,13 @@ export const MainLayout: Component = () => {
   };
 
   onMount(() => {
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
   });
 
   onCleanup(() => {
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
+    window.removeEventListener('mousemove', handleMouseMove);
+    window.removeEventListener('mouseup', handleMouseUp);
   });
 
   // Mobile tab navigation
@@ -107,17 +107,17 @@ export const MainLayout: Component = () => {
 
       {/* Main content area */}
       <div
-        ref={containerRef}
+        ref={(el) => (containerRef = el)}
         class={cn(
           "flex-1 flex overflow-hidden",
-          (isDraggingVertical() || isDraggingHorizontal()) && "select-none"
+          (isDraggingVertical() || isDraggingHorizontal()) && "select-none cursor-grabbing"
         )}
       >
         {/* Desktop: Two-column layout */}
         <div class="hidden md:flex flex-1">
           {/* Left column: Files + Preview (stacked) */}
           <div
-            data-left-column
+            ref={(el) => (leftColumnRef = el)}
             class="flex flex-col overflow-hidden"
             style={{ width: `${leftColumnWidth()}%` }}
           >
@@ -132,13 +132,17 @@ export const MainLayout: Component = () => {
             {/* Horizontal resize handle */}
             <div
               class={cn(
-                "h-1 bg-dark-700 hover:bg-accent-primary/50 cursor-row-resize transition-colors flex-shrink-0",
+                "h-2 bg-dark-800 hover:bg-accent-primary/50 cursor-row-resize transition-colors flex-shrink-0 group",
                 isDraggingHorizontal() && "bg-accent-primary"
               )}
               onMouseDown={handleHorizontalDragStart}
             >
               <div class="h-full w-full flex items-center justify-center">
-                <div class="w-8 h-0.5 bg-dark-500 rounded-full" />
+                <div class={cn(
+                  "w-12 h-1 bg-dark-600 rounded-full transition-colors",
+                  "group-hover:bg-accent-primary/70",
+                  isDraggingHorizontal() && "bg-accent-primary"
+                )} />
               </div>
             </div>
 
@@ -154,13 +158,17 @@ export const MainLayout: Component = () => {
           {/* Vertical resize handle */}
           <div
             class={cn(
-              "w-1 bg-dark-700 hover:bg-accent-primary/50 cursor-col-resize transition-colors flex-shrink-0",
+              "w-2 bg-dark-800 hover:bg-accent-primary/50 cursor-col-resize transition-colors flex-shrink-0 group",
               isDraggingVertical() && "bg-accent-primary"
             )}
             onMouseDown={handleVerticalDragStart}
           >
             <div class="h-full w-full flex items-center justify-center">
-              <div class="h-8 w-0.5 bg-dark-500 rounded-full" />
+              <div class={cn(
+                "h-12 w-1 bg-dark-600 rounded-full transition-colors",
+                "group-hover:bg-accent-primary/70",
+                isDraggingVertical() && "bg-accent-primary"
+              )} />
             </div>
           </div>
 
