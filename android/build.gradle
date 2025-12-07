@@ -22,6 +22,27 @@ allprojects {
         google()
         mavenCentral()
     }
+
+    // Configure Java toolchain for all subprojects (required for Capacitor 7.x)
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android {
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_21
+                    targetCompatibility JavaVersion.VERSION_21
+                }
+            }
+        }
+
+        // Configure Kotlin if present
+        if (project.plugins.hasPlugin('kotlin-android')) {
+            project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                kotlinOptions {
+                    jvmTarget = '21'
+                }
+            }
+        }
+    }
 }
 
 task clean(type: Delete) {
