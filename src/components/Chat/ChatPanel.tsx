@@ -69,7 +69,7 @@ export const ChatPanel: Component = () => {
               </Show>
               <Show when={aiStore.isLoading()}>Loading...</Show>
               <Show when={aiStore.hasError()}>Error</Show>
-              <Show when={aiStore.needsDownload()}>Download Model</Show>
+              <Show when={aiStore.needsDownload()}>No Model</Show>
             </span>
           </div>
           <button
@@ -116,7 +116,7 @@ export const ChatPanel: Component = () => {
 
             <div class="mb-4">
               <p class="text-sm text-dark-300 mb-3">
-                Smart Storage AI needs to download a small language model (~80MB) to provide
+                Smart Storage AI needs to download a small language model (~92MB) to provide
                 intelligent file organization suggestions. This only happens once.
               </p>
 
@@ -127,7 +127,7 @@ export const ChatPanel: Component = () => {
                 </div>
                 <div class="flex justify-between mb-1">
                   <span>Size:</span>
-                  <span class="text-dark-200">~80 MB</span>
+                  <span class="text-dark-200">~92 MB</span>
                 </div>
                 <div class="flex justify-between">
                   <span>Privacy:</span>
