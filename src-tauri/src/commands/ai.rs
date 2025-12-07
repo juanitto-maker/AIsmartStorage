@@ -11,7 +11,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::AsyncWriteExt;
 
 // Model configuration
-const MODEL_URL: &str = "https://huggingface.co/Mungert/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf";
+const MODEL_URL: &str = "https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf";
 const MODEL_FILENAME: &str = "SmolLM2-135M-Instruct-Q4_K_M.gguf";
 
 // AI Status enum

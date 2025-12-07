@@ -7,7 +7,7 @@ import { createSignal } from 'solid-js';
 import type { AiStatus, DownloadProgress } from '../types';
 
 // Model configuration
-const MODEL_URL = 'https://huggingface.co/Mungert/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf';
+const MODEL_URL = 'https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf';
 const MODEL_SIZE_MB = 92;
 const MODEL_STORAGE_KEY = 'smartstorage_ai_model';
 const MODEL_DOWNLOADED_KEY = 'smartstorage_model_downloaded';
