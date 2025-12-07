@@ -254,13 +254,10 @@ async function loadWllamaModel(): Promise<void> {
     const modelBlob = await response.blob();
     const modelArrayBuffer = await modelBlob.arrayBuffer();
 
-    // Initialize wllama
+    // Initialize wllama with correct CDN URLs (pinned version for stability)
     wllamaInstance = new Wllama({
-      'single-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@anthropic-ai/wllama@latest/esm/single-thread/wllama.wasm',
-      'multi-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@anthropic-ai/wllama@latest/esm/multi-thread/wllama.wasm',
-    }, {
-      // Use single-thread for better compatibility
-      useMultiThread: false,
+      'single-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.7/esm/single-thread/wllama.wasm',
+      'multi-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.7/esm/multi-thread/wllama.wasm',
     });
 
     // Load model from array buffer
@@ -282,10 +279,8 @@ async function loadWllamaModelAlternative(): Promise<void> {
     const { Wllama } = await import('@wllama/wllama');
 
     wllamaInstance = new Wllama({
-      'single-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@latest/esm/single-thread/wllama.wasm',
-      'multi-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@latest/esm/multi-thread/wllama.wasm',
-    }, {
-      useMultiThread: false,
+      'single-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.7/esm/single-thread/wllama.wasm',
+      'multi-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.7/esm/multi-thread/wllama.wasm',
     });
 
     // Load directly from cache URL
@@ -355,12 +350,10 @@ async function loadEmbeddedModel(): Promise<void> {
 
     const modelArrayBuffer = await modelBlob.arrayBuffer();
 
-    // Initialize wllama
+    // Initialize wllama with correct CDN URLs
     wllamaInstance = new Wllama({
-      'single-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@latest/esm/single-thread/wllama.wasm',
-      'multi-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@latest/esm/multi-thread/wllama.wasm',
-    }, {
-      useMultiThread: false,
+      'single-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.7/esm/single-thread/wllama.wasm',
+      'multi-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.7/esm/multi-thread/wllama.wasm',
     });
 
     // Load model from array buffer
@@ -435,12 +428,12 @@ async function downloadModel(): Promise<boolean> {
       setDownloadProgress({
         downloaded: received,
         total,
-        percent: progress,
+        progress,
       });
     }
 
     // Combine chunks into single blob
-    const blob = new Blob(chunks, { type: 'application/octet-stream' });
+    const blob = new Blob(chunks as BlobPart[], { type: 'application/octet-stream' });
 
     // Verify size (should be > 50MB)
     if (blob.size < 50 * 1024 * 1024) {
