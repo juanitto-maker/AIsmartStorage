@@ -13,6 +13,7 @@ import {
 } from '../utils/chatEngine';
 import { previewStore } from './preview';
 import { historyStore } from './history';
+import { aiStore } from './ai';
 import { generateId } from '../utils/helpers';
 
 // State
@@ -98,7 +99,28 @@ async function handleIntent(intent: ParsedIntent): Promise<void> {
       break;
 
     default:
+      // For unknown intents, use real AI if available
+      await handleUnknownIntent(intent);
+  }
+}
+
+/**
+ * Handle unknown intent using real AI
+ */
+async function handleUnknownIntent(intent: ParsedIntent): Promise<void> {
+  // If AI is ready, use it for natural conversation
+  if (aiStore.isReady()) {
+    try {
+      const response = await aiStore.generateResponse(intent.rawText);
+      addAssistantMessage(response);
+    } catch (error) {
+      console.error('AI response error:', error);
+      // Fallback to pattern-based response
       addAssistantMessage(generateResponse(intent));
+    }
+  } else {
+    // Use pattern-based fallback
+    addAssistantMessage(generateResponse(intent));
   }
 }
 
