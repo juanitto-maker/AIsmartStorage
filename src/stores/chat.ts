@@ -15,6 +15,14 @@ import { previewStore } from './preview';
 import { historyStore } from './history';
 import { generateId } from '../utils/helpers';
 
+// AI backend imports (Tauri)
+import {
+  checkModelStatus,
+  initializeModel,
+  chat as aiChat,
+  type ModelStatus,
+} from '../lib/ai';
+
 // State
 const [messages, setMessages] = createSignal<ChatMessage[]>([getWelcomeMessage()]);
 const [isProcessing, setIsProcessing] = createSignal(false);
@@ -23,6 +31,12 @@ const [suggestions, setSuggestions] = createSignal<ChatSuggestion[]>(getSuggesti
 const [awaitingConfirmation, setAwaitingConfirmation] = createSignal(false);
 const [pendingAction, setPendingAction] = createSignal<ParsedIntent | null>(null);
 
+// AI Model state
+const [modelStatus, setModelStatus] = createSignal<ModelStatus | null>(null);
+const [modelLoading, setModelLoading] = createSignal(false);
+const [modelError, setModelError] = createSignal<string | null>(null);
+const [useAiBackend, setUseAiBackend] = createSignal(true);
+
 // Computed
 const lastMessage = createMemo(() => {
   const msgs = messages();
@@ -30,6 +44,70 @@ const lastMessage = createMemo(() => {
 });
 
 const messageCount = createMemo(() => messages().length);
+
+// Computed for AI status
+const isModelReady = createMemo(() => {
+  const status = modelStatus();
+  return status?.loaded === true && !modelLoading();
+});
+
+/**
+ * Initialize the AI model (should be called on app startup)
+ */
+async function initAI(): Promise<void> {
+  if (modelLoading()) return;
+
+  setModelLoading(true);
+  setModelError(null);
+
+  try {
+    // Check if running in Tauri environment
+    if (typeof window !== 'undefined' && '__TAURI__' in window) {
+      const success = await initializeModel((status) => {
+        console.log('AI init:', status);
+      });
+
+      if (success) {
+        const status = await checkModelStatus();
+        setModelStatus(status);
+        console.log('AI model ready:', status.modelName);
+      } else {
+        setModelError('Failed to initialize AI model');
+        setUseAiBackend(false);
+      }
+    } else {
+      // Not in Tauri, use fallback
+      console.log('Not in Tauri environment, using local chat engine');
+      setUseAiBackend(false);
+    }
+  } catch (e) {
+    console.error('AI initialization error:', e);
+    setModelError(String(e));
+    setUseAiBackend(false);
+  } finally {
+    setModelLoading(false);
+  }
+}
+
+/**
+ * Get AI response using the backend model
+ */
+async function getAIResponse(message: string): Promise<string> {
+  if (!useAiBackend()) {
+    // Fallback to local chat engine
+    const intent = parseIntent(message);
+    return generateResponse(intent);
+  }
+
+  try {
+    return await aiChat(message);
+  } catch (e) {
+    console.error('AI chat error, falling back to local engine:', e);
+    // Fall back to local engine on error
+    const intent = parseIntent(message);
+    return generateResponse(intent);
+  }
+}
 
 /**
  * Send a user message and get AI response
@@ -340,9 +418,16 @@ export const chatStore = {
   suggestions,
   awaitingConfirmation,
 
+  // AI State
+  modelStatus,
+  modelLoading,
+  modelError,
+  useAiBackend,
+
   // Computed
   lastMessage,
   messageCount,
+  isModelReady,
 
   // Actions
   setInputValue,
@@ -350,4 +435,6 @@ export const chatStore = {
   useSuggestion,
   clearChat,
   addAssistantMessage,
+  initAI,
+  getAIResponse,
 };

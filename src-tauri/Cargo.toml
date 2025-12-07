@@ -25,8 +25,13 @@ walkdir = "2.4"
 mime_guess = "2.0"
 lazy_static = "1.4"
 
-# Optional: For future AI integration
-# ort = "2.0"  # ONNX Runtime
+# AI/LLM dependencies
+sha2 = "0.10"
+parking_lot = "0.12"
+
+# LLM inference - llama.cpp bindings
+# Note: Uncomment when ready for full llama.cpp integration
+# llama-cpp-2 = "0.1"
 
 [features]
 default = ["custom-protocol"]
