@@ -1,9 +1,16 @@
 // ============================================================================
 // AI Store - Manages AI model status and inference
+// Uses wllama (WebAssembly llama.cpp) for browser-based inference
 // ============================================================================
 
-import { createSignal, createEffect } from 'solid-js';
-import type { AiStatus, AiStatusType, DownloadProgress } from '../types';
+import { createSignal } from 'solid-js';
+import type { AiStatus, DownloadProgress } from '../types';
+
+// Model configuration
+const MODEL_URL = 'https://huggingface.co/Mungert/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf';
+const MODEL_SIZE_MB = 92;
+const MODEL_STORAGE_KEY = 'smartstorage_ai_model';
+const MODEL_DOWNLOADED_KEY = 'smartstorage_model_downloaded';
 
 // Check if running in Tauri environment
 const isTauri = () => {
@@ -13,6 +20,10 @@ const isTauri = () => {
 // Dynamic import for Tauri APIs
 let invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
 let listen: ((event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void>) | null = null;
+
+// Wllama instance for web inference
+let wllamaInstance: any = null;
+let modelLoaded = false;
 
 // Initialize Tauri APIs
 async function initTauriApis() {
@@ -45,9 +56,9 @@ const statusText = () => {
   const s = status();
   switch (s.type) {
     case 'not_downloaded':
-      return 'Download Required';
+      return 'No Model';
     case 'downloading':
-      return `Downloading... ${Math.round(s.progress || 0)}%`;
+      return `Downloading ${Math.round(s.progress || 0)}%`;
     case 'loading':
       return 'Loading...';
     case 'ready':
@@ -75,7 +86,7 @@ const statusBadgeClass = () => {
   }
 };
 
-// Parse status from backend
+// Parse status from backend (for Tauri)
 function parseBackendStatus(backendStatus: unknown): AiStatus {
   if (typeof backendStatus === 'string') {
     switch (backendStatus) {
@@ -107,121 +118,320 @@ function parseBackendStatus(backendStatus: unknown): AiStatus {
   return { type: 'not_downloaded' };
 }
 
+// Check if model is already downloaded (for web)
+async function checkModelDownloaded(): Promise<boolean> {
+  try {
+    const downloaded = localStorage.getItem(MODEL_DOWNLOADED_KEY);
+    if (downloaded !== 'true') return false;
+
+    // Verify model exists in cache
+    if ('caches' in window) {
+      const cache = await caches.open(MODEL_STORAGE_KEY);
+      const response = await cache.match(MODEL_URL);
+      return response !== undefined;
+    }
+    return false;
+  } catch (e) {
+    console.warn('Error checking model status:', e);
+    return false;
+  }
+}
+
 // Initialize AI and check model status
 async function init(): Promise<void> {
   if (isInitialized()) return;
 
   await initTauriApis();
 
-  if (!isTauri() || !invoke) {
-    // In web mode, use mock "ready" status for demo
-    setStatus({ type: 'ready' });
-    setIsInitialized(true);
+  if (isTauri() && invoke) {
+    // Tauri mode - use backend
+    try {
+      if (listen) {
+        listen('ai-status', (event) => {
+          const newStatus = parseBackendStatus(event.payload);
+          setStatus(newStatus);
+        });
+
+        listen('download-progress', (event) => {
+          const progress = event.payload as DownloadProgress;
+          setDownloadProgress(progress);
+        });
+      }
+
+      const result = await invoke('init_ai');
+      const parsedStatus = parseBackendStatus(result);
+      setStatus(parsedStatus);
+      setIsInitialized(true);
+    } catch (error) {
+      console.error('AI init error:', error);
+      setStatus({ type: 'error', message: String(error) });
+      setIsInitialized(true);
+    }
     return;
   }
 
+  // Web/Capacitor mode - check if model was previously downloaded
   try {
-    // Set up event listeners for status updates
-    if (listen) {
-      listen('ai-status', (event) => {
-        const newStatus = parseBackendStatus(event.payload);
-        setStatus(newStatus);
-      });
+    const modelExists = await checkModelDownloaded();
+    if (modelExists) {
+      // Model exists, try to load it
+      setStatus({ type: 'loading' });
+      await loadWllamaModel();
+    } else {
+      // No model - show download required
+      setStatus({ type: 'not_downloaded' });
+    }
+  } catch (error) {
+    console.error('Web AI init error:', error);
+    setStatus({ type: 'not_downloaded' });
+  }
 
-      listen('download-progress', (event) => {
-        const progress = event.payload as DownloadProgress;
-        setDownloadProgress(progress);
-      });
+  setIsInitialized(true);
+}
+
+// Load wllama model from cache
+async function loadWllamaModel(): Promise<void> {
+  try {
+    const { Wllama } = await import('@wllama/wllama');
+
+    // Get model from cache
+    const cache = await caches.open(MODEL_STORAGE_KEY);
+    const response = await cache.match(MODEL_URL);
+
+    if (!response) {
+      throw new Error('Model not found in cache');
     }
 
-    // Check current model status
-    const result = await invoke('init_ai');
-    const parsedStatus = parseBackendStatus(result);
-    setStatus(parsedStatus);
-    setIsInitialized(true);
+    const modelBlob = await response.blob();
+    const modelArrayBuffer = await modelBlob.arrayBuffer();
+
+    // Initialize wllama
+    wllamaInstance = new Wllama({
+      'single-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@anthropic-ai/wllama@latest/esm/single-thread/wllama.wasm',
+      'multi-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@anthropic-ai/wllama@latest/esm/multi-thread/wllama.wasm',
+    }, {
+      // Use single-thread for better compatibility
+      useMultiThread: false,
+    });
+
+    // Load model from array buffer
+    await wllamaInstance.loadModelFromBuffer(new Uint8Array(modelArrayBuffer));
+
+    modelLoaded = true;
+    setStatus({ type: 'ready' });
+    console.log('AI model loaded successfully');
   } catch (error) {
-    console.error('AI init error:', error);
-    setStatus({ type: 'error', message: String(error) });
-    setIsInitialized(true);
+    console.error('Failed to load wllama model:', error);
+    // Try alternative loading method
+    await loadWllamaModelAlternative();
+  }
+}
+
+// Alternative model loading using URL directly
+async function loadWllamaModelAlternative(): Promise<void> {
+  try {
+    const { Wllama } = await import('@wllama/wllama');
+
+    wllamaInstance = new Wllama({
+      'single-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@latest/esm/single-thread/wllama.wasm',
+      'multi-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@latest/esm/multi-thread/wllama.wasm',
+    }, {
+      useMultiThread: false,
+    });
+
+    // Load directly from cache URL
+    const cache = await caches.open(MODEL_STORAGE_KEY);
+    const response = await cache.match(MODEL_URL);
+
+    if (response) {
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      await wllamaInstance.loadModelFromUrl(url);
+      URL.revokeObjectURL(url);
+
+      modelLoaded = true;
+      setStatus({ type: 'ready' });
+      console.log('AI model loaded via alternative method');
+    } else {
+      throw new Error('Model not in cache');
+    }
+  } catch (error) {
+    console.error('Alternative loading failed:', error);
+    setStatus({ type: 'error', message: 'Failed to load model. Please re-download.' });
+    localStorage.removeItem(MODEL_DOWNLOADED_KEY);
   }
 }
 
 // Download the model
 async function downloadModel(): Promise<boolean> {
-  if (!isTauri() || !invoke) {
-    // Mock download for web demo
-    setStatus({ type: 'downloading', progress: 0 });
-
-    // Simulate download progress
-    for (let i = 0; i <= 100; i += 5) {
-      await new Promise((r) => setTimeout(r, 100));
-      setStatus({ type: 'downloading', progress: i });
+  if (isTauri() && invoke) {
+    // Tauri mode
+    try {
+      setStatus({ type: 'downloading', progress: 0 });
+      await invoke('download_model');
+      setStatus({ type: 'loading' });
+      await invoke('load_model');
+      setStatus({ type: 'ready' });
+      return true;
+    } catch (error) {
+      console.error('Download error:', error);
+      setStatus({ type: 'error', message: String(error) });
+      return false;
     }
-
-    setStatus({ type: 'loading' });
-    await new Promise((r) => setTimeout(r, 500));
-    setStatus({ type: 'ready' });
-    return true;
   }
 
+  // Web/Capacitor mode - download to cache
   try {
     setStatus({ type: 'downloading', progress: 0 });
-    await invoke('download_model');
 
-    // After download completes, load the model
+    const response = await fetch(MODEL_URL);
+
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status}`);
+    }
+
+    const contentLength = response.headers.get('content-length');
+    const total = contentLength ? parseInt(contentLength, 10) : MODEL_SIZE_MB * 1024 * 1024;
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('Failed to get response reader');
+    }
+
+    const chunks: Uint8Array[] = [];
+    let received = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) break;
+
+      chunks.push(value);
+      received += value.length;
+
+      const progress = Math.round((received / total) * 100);
+      setStatus({ type: 'downloading', progress });
+      setDownloadProgress({
+        downloaded: received,
+        total,
+        percent: progress,
+      });
+    }
+
+    // Combine chunks into single blob
+    const blob = new Blob(chunks, { type: 'application/octet-stream' });
+
+    // Verify size (should be > 50MB)
+    if (blob.size < 50 * 1024 * 1024) {
+      throw new Error('Downloaded file is too small - may be corrupted');
+    }
+
+    // Store in cache
+    const cache = await caches.open(MODEL_STORAGE_KEY);
+    await cache.put(MODEL_URL, new Response(blob));
+    localStorage.setItem(MODEL_DOWNLOADED_KEY, 'true');
+
+    console.log(`Model downloaded: ${(blob.size / 1024 / 1024).toFixed(1)}MB`);
+
+    // Load the model
     setStatus({ type: 'loading' });
-    await invoke('load_model');
+    await loadWllamaModel();
 
-    setStatus({ type: 'ready' });
     return true;
   } catch (error) {
-    console.error('Download error:', error);
+    console.error('Web download error:', error);
     setStatus({ type: 'error', message: String(error) });
     return false;
   }
 }
 
+// Format prompt for SmolLM2-Instruct
+function formatPrompt(userMessage: string): string {
+  return `<|im_start|>system
+You are a helpful AI assistant for organizing files. You help users organize, find, and manage their files. Keep responses concise and helpful.<|im_end|>
+<|im_start|>user
+${userMessage}<|im_end|>
+<|im_start|>assistant
+`;
+}
+
 // Generate AI response
 async function generateResponse(prompt: string): Promise<string> {
-  if (!isTauri() || !invoke) {
-    // Return mock response for web demo
-    return generateMockResponse(prompt);
+  if (isTauri() && invoke) {
+    // Tauri mode
+    if (!isReady()) {
+      throw new Error('Model not ready');
+    }
+
+    try {
+      const response = await invoke('generate_response', { prompt });
+      return response as string;
+    } catch (error) {
+      console.error('Generate response error:', error);
+      throw error;
+    }
   }
 
-  if (!isReady()) {
-    throw new Error('Model not ready');
+  // Web/Capacitor mode - use wllama
+  if (!modelLoaded || !wllamaInstance) {
+    throw new Error('Model not loaded. Please download the AI model first.');
   }
 
   try {
-    const response = await invoke('generate_response', { prompt });
-    return response as string;
+    const formattedPrompt = formatPrompt(prompt);
+
+    const result = await wllamaInstance.createCompletion(formattedPrompt, {
+      nPredict: 256,
+      temperature: 0.7,
+      topP: 0.9,
+      stopTokens: ['<|im_end|>', '<|im_start|>'],
+    });
+
+    // Clean up the response
+    let response = result.trim();
+
+    // Remove any trailing special tokens
+    response = response.replace(/<\|im_end\|>/g, '').replace(/<\|im_start\|>/g, '').trim();
+
+    return response || "I'm here to help you organize your files. What would you like to do?";
   } catch (error) {
-    console.error('Generate response error:', error);
-    throw error;
+    console.error('Web inference error:', error);
+    throw new Error('Failed to generate response. Please try again.');
   }
 }
 
-// Mock response for web demo
-function generateMockResponse(prompt: string): string {
-  const lowerPrompt = prompt.toLowerCase();
+// Get model info
+function getModelInfo() {
+  return {
+    name: 'SmolLM2-135M-Instruct',
+    size: `${MODEL_SIZE_MB}MB`,
+    url: MODEL_URL,
+    description: '100% local processing - no data leaves your device',
+  };
+}
 
-  if (lowerPrompt.includes('organize') || lowerPrompt.includes('sort')) {
-    return "I'll help you organize your files. I can sort them by type, date, or size. Just tell me which method you prefer!";
+// Delete downloaded model
+async function deleteModel(): Promise<void> {
+  try {
+    if ('caches' in window) {
+      await caches.delete(MODEL_STORAGE_KEY);
+    }
+    localStorage.removeItem(MODEL_DOWNLOADED_KEY);
+
+    if (wllamaInstance) {
+      try {
+        await wllamaInstance.exit();
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+      wllamaInstance = null;
+    }
+    modelLoaded = false;
+
+    setStatus({ type: 'not_downloaded' });
+  } catch (error) {
+    console.error('Failed to delete model:', error);
   }
-
-  if (lowerPrompt.includes('find') || lowerPrompt.includes('search')) {
-    return "I'll search through your files to find what you're looking for. The results will appear in the file browser.";
-  }
-
-  if (lowerPrompt.includes('space') || lowerPrompt.includes('storage')) {
-    return "I'll analyze your storage usage and show you what's taking up the most space.";
-  }
-
-  if (lowerPrompt.includes('help')) {
-    return "I can help you organize files by type/date/size, search for specific files, and analyze storage usage. Just ask!";
-  }
-
-  return "I understand. How can I help you organize your files today?";
 }
 
 // Export store
@@ -244,4 +454,6 @@ export const aiStore = {
   init,
   downloadModel,
   generateResponse,
+  getModelInfo,
+  deleteModel,
 };
