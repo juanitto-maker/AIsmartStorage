@@ -109,10 +109,32 @@ async function initTauriApis() {
   }
 }
 
-// State
-const [status, setStatus] = createSignal<AiStatus>({ type: 'not_downloaded' });
+// State - Start with 'loading' to prevent initial flicker when checking for embedded model
+const [status, setStatus] = createSignal<AiStatus>({ type: 'loading' });
 const [downloadProgress, setDownloadProgress] = createSignal<DownloadProgress | null>(null);
 const [isInitialized, setIsInitialized] = createSignal(false);
+
+// Track if we're currently loading to prevent concurrent loads
+let isCurrentlyLoading = false;
+
+// Minimum time to show loading state (prevents flicker)
+const MIN_LOADING_TIME_MS = 500;
+let loadingStartTime = Date.now();
+
+// Wrapper to set status with minimum loading time
+async function setStatusWithMinTime(newStatus: AiStatus): Promise<void> {
+  if (newStatus.type !== 'loading' && status().type === 'loading') {
+    // Ensure loading was shown for minimum time before transitioning
+    const elapsed = Date.now() - loadingStartTime;
+    if (elapsed < MIN_LOADING_TIME_MS) {
+      await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME_MS - elapsed));
+    }
+  }
+  if (newStatus.type === 'loading') {
+    loadingStartTime = Date.now();
+  }
+  setStatus(newStatus);
+}
 
 // Computed helpers
 const isReady = () => status().type === 'ready';
@@ -209,7 +231,9 @@ async function checkModelDownloaded(): Promise<boolean> {
 
 // Initialize AI and check model status
 async function init(): Promise<void> {
-  if (isInitialized()) return;
+  // Prevent concurrent initializations
+  if (isInitialized() || isCurrentlyLoading) return;
+  isCurrentlyLoading = true;
 
   await initTauriApis();
 
@@ -232,41 +256,50 @@ async function init(): Promise<void> {
       const parsedStatus = parseBackendStatus(result);
       setStatus(parsedStatus);
       setIsInitialized(true);
+      isCurrentlyLoading = false;
     } catch (error) {
       console.error('AI init error:', error);
       setStatus({ type: 'error', message: String(error) });
       setIsInitialized(true);
+      isCurrentlyLoading = false;
     }
     return;
   }
 
   // Web/Capacitor mode - check for embedded model first, then cached model
+  // Status is already 'loading' by default to prevent initial flicker
   try {
     // Check for embedded model in APK assets (Android)
+    console.log('Checking for embedded model...');
     const hasEmbeddedModel = await checkEmbeddedModel();
     if (hasEmbeddedModel) {
-      setStatus({ type: 'loading' });
+      console.log('Embedded model found, loading...');
+      // Status already 'loading', proceed with load
       await loadEmbeddedModel();
       setIsInitialized(true);
+      isCurrentlyLoading = false;
       return;
     }
 
     // Fall back to checking if model was previously downloaded
+    console.log('No embedded model, checking cache...');
     const modelExists = await checkModelDownloaded();
     if (modelExists) {
       // Model exists in cache, try to load it
-      setStatus({ type: 'loading' });
+      console.log('Cached model found, loading...');
       await loadWllamaModel();
     } else {
-      // No model - show download required
-      setStatus({ type: 'not_downloaded' });
+      // No model - show download required (with minimum loading time to prevent flicker)
+      console.log('No model found, showing download prompt...');
+      await setStatusWithMinTime({ type: 'not_downloaded' });
     }
   } catch (error) {
     console.error('Web AI init error:', error);
-    setStatus({ type: 'not_downloaded' });
+    await setStatusWithMinTime({ type: 'not_downloaded' });
   }
 
   setIsInitialized(true);
+  isCurrentlyLoading = false;
 }
 
 // Load wllama model from cache
@@ -295,7 +328,7 @@ async function loadWllamaModel(): Promise<void> {
     await wllamaInstance.loadModelFromBuffer(new Uint8Array(modelArrayBuffer));
 
     modelLoaded = true;
-    setStatus({ type: 'ready' });
+    await setStatusWithMinTime({ type: 'ready' });
     console.log('AI model loaded successfully');
   } catch (error) {
     console.error('Failed to load wllama model:', error);
@@ -325,14 +358,14 @@ async function loadWllamaModelAlternative(): Promise<void> {
       URL.revokeObjectURL(url);
 
       modelLoaded = true;
-      setStatus({ type: 'ready' });
+      await setStatusWithMinTime({ type: 'ready' });
       console.log('AI model loaded via alternative method');
     } else {
       throw new Error('Model not in cache');
     }
   } catch (error) {
     console.error('Alternative loading failed:', error);
-    setStatus({ type: 'error', message: 'Failed to load model. Please re-download.' });
+    await setStatusWithMinTime({ type: 'not_downloaded' });
     localStorage.removeItem(MODEL_DOWNLOADED_KEY);
   }
 }
@@ -400,7 +433,7 @@ async function loadEmbeddedModel(): Promise<void> {
     modelLoaded = true;
     embeddedModelAvailable = true;
     workingModelPath = successPath; // Remember this path
-    setStatus({ type: 'ready' });
+    await setStatusWithMinTime({ type: 'ready' });
     console.log('Embedded AI model loaded successfully!');
   } catch (error) {
     console.error('Failed to load embedded model:', error);
@@ -408,9 +441,12 @@ async function loadEmbeddedModel(): Promise<void> {
     embeddedModelAvailable = false;
     const modelExists = await checkModelDownloaded();
     if (modelExists) {
+      console.log('Falling back to cached model...');
       await loadWllamaModel();
     } else {
-      setStatus({ type: 'error', message: 'Failed to load AI model. Please download.' });
+      // Show not_downloaded instead of error - let user choose to download
+      console.log('No cached model, prompting for download...');
+      await setStatusWithMinTime({ type: 'not_downloaded' });
     }
   }
 }

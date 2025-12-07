@@ -20,10 +20,13 @@ export const ChatPanel: Component = () => {
     await historyStore.init();
     await aiStore.init();
 
-    // Show download dialog if model not downloaded
-    if (aiStore.needsDownload()) {
-      setShowDownloadDialog(true);
-    }
+    // Show download dialog if model not downloaded (after init completes)
+    // Wait a brief moment to let any state transitions settle
+    setTimeout(() => {
+      if (aiStore.needsDownload()) {
+        setShowDownloadDialog(true);
+      }
+    }, 100);
   });
 
   // Handle download click
