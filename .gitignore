@@ -52,11 +52,14 @@ coverage/
 # TypeScript
 *.tsbuildinfo
 
-# AI Models (too large for git)
+# AI Models (binary files too large for git)
 models/
 *.onnx
 *.bin
 *.safetensors
+*.gguf
+*.gguf.part_*
+# Keep Models/ folder but ignore large binary files inside it
 
 # SQLite databases
 *.db
