@@ -1,8 +1,5 @@
 // ============================================================================
-// Tauri Commands Module
+// Model Download Component Exports
 // ============================================================================
 
-pub mod files;
-pub mod organize;
-pub mod history;
-pub mod model;
+export { ModelDownloadModal } from './ModelDownloadModal';

@@ -25,6 +25,12 @@ walkdir = "2.4"
 mime_guess = "2.0"
 lazy_static = "1.4"
 
+# Model download and verification
+reqwest = { version = "0.11", features = ["stream", "rustls-tls"], default-features = false }
+sha2 = "0.10"
+hex = "0.4"
+futures-util = "0.3"
+
 # Optional: For future AI integration
 # ort = "2.0"  # ONNX Runtime
 
