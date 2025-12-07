@@ -59,6 +59,7 @@ models/
 *.safetensors
 *.gguf
 *.gguf.part_*
+*.gguf*.part_*
 # Keep Models/ folder but ignore large binary files inside it
 
 # SQLite databases
