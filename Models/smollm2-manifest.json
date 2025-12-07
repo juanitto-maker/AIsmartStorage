@@ -1,0 +1,38 @@
+{
+  "model_name": "SmolLM2-135M-Instruct",
+  "model_file": "smollm2-135m-instruct.gguf",
+  "total_size": 96408576,
+  "parts": [
+    {
+      "file": "smollm2-135m-instruct.gguf.part_aa",
+      "size": 20971520,
+      "order": 1
+    },
+    {
+      "file": "smollm2-135m-instruct.gguf.part_ab",
+      "size": 20971520,
+      "order": 2
+    },
+    {
+      "file": "smollm2-135m-instruct.gguf.part_ac",
+      "size": 20971520,
+      "order": 3
+    },
+    {
+      "file": "smollm2-135m-instruct.gguf.part_ad",
+      "size": 20971520,
+      "order": 4
+    },
+    {
+      "file": "smollm2-135m-instruct.gguf.part_ae",
+      "size": 12582912,
+      "order": 5
+    }
+  ],
+  "checksum_sha256": "4bd46e022f32b681ae1beba1030d9ad042a655e75239fe83267f5e3bba98801d",
+  "source": "https://huggingface.co/Mungert/SmolLM2-135M-Instruct-GGUF",
+  "license": "Apache-2.0",
+  "quantization": "Q4_K_M",
+  "context_length": 8192,
+  "instructions": "Concatenate all parts in order (aa, ab, ac, ad, ae) to reconstruct the model file."
+}
