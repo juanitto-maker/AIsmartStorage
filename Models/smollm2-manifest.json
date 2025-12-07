@@ -30,7 +30,7 @@
     }
   ],
   "checksum_sha256": "4bd46e022f32b681ae1beba1030d9ad042a655e75239fe83267f5e3bba98801d",
-  "source": "https://huggingface.co/Mungert/SmolLM2-135M-Instruct-GGUF",
+  "source": "https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF",
   "license": "Apache-2.0",
   "quantization": "Q4_K_M",
   "context_length": 8192,
