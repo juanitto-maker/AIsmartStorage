@@ -12,8 +12,7 @@ const MODEL_SIZE_MB = 92;
 const MODEL_STORAGE_KEY = 'smartstorage_ai_model';
 const MODEL_DOWNLOADED_KEY = 'smartstorage_model_downloaded';
 
-// Embedded model configuration (for Android APK)
-const EMBEDDED_MODEL_PATH = 'models/smollm2-135m-instruct-q4_k_m.gguf';
+// Embedded model state
 let embeddedModelAvailable = false;
 
 // Check if running in Tauri environment
@@ -26,29 +25,61 @@ const isCapacitor = () => {
   return typeof window !== 'undefined' && 'Capacitor' in window;
 };
 
+// Paths to try for embedded model (in order of preference)
+const EMBEDDED_MODEL_PATHS = [
+  '/models/smollm2-135m-instruct-q4_k_m.gguf',
+  './models/smollm2-135m-instruct-q4_k_m.gguf',
+  'models/smollm2-135m-instruct-q4_k_m.gguf',
+  '/public/models/smollm2-135m-instruct-q4_k_m.gguf',
+];
+
+// Store which path works for later loading
+let workingModelPath: string | null = null;
+
 // Check if embedded model is available (Android APK)
 async function checkEmbeddedModel(): Promise<boolean> {
-  if (!isCapacitor()) return false;
+  if (!isCapacitor()) {
+    console.log('Not running in Capacitor, skipping embedded model check');
+    return false;
+  }
 
-  try {
-    // Try to fetch the embedded model from assets
-    const response = await fetch(`/${EMBEDDED_MODEL_PATH}`, { method: 'HEAD' });
-    if (response.ok) {
-      console.log('Embedded AI model found in APK assets');
-      embeddedModelAvailable = true;
-      return true;
-    }
-  } catch (e) {
-    // Try alternative path for Capacitor assets
+  console.log('Checking for embedded AI model in APK assets...');
+
+  // Try each path - use GET with range header to just check if file exists
+  // HEAD requests often don't work on Android local assets
+  for (const path of EMBEDDED_MODEL_PATHS) {
     try {
-      const altResponse = await fetch(`file:///android_asset/public/${EMBEDDED_MODEL_PATH}`, { method: 'HEAD' });
-      if (altResponse.ok) {
-        console.log('Embedded AI model found via file:// protocol');
-        embeddedModelAvailable = true;
-        return true;
+      console.log(`Trying path: ${path}`);
+      const response = await fetch(path, {
+        method: 'GET',
+        headers: {
+          'Range': 'bytes=0-1024' // Only fetch first 1KB to verify file exists
+        }
+      });
+
+      if (response.ok || response.status === 206) {
+        // Check if it looks like a GGUF file (magic number: 0x46554747 = "GGUF")
+        const buffer = await response.arrayBuffer();
+        const view = new DataView(buffer);
+        if (buffer.byteLength >= 4) {
+          const magic = view.getUint32(0, true);
+          if (magic === 0x46554747) { // "GGUF" in little-endian
+            console.log(`Embedded AI model found at: ${path}`);
+            workingModelPath = path;
+            embeddedModelAvailable = true;
+            return true;
+          }
+        }
+        // Even without magic check, if we got data and response is ok
+        if (buffer.byteLength > 0) {
+          console.log(`File found at ${path} (${buffer.byteLength} bytes preview)`);
+          workingModelPath = path;
+          embeddedModelAvailable = true;
+          return true;
+        }
       }
-    } catch {
-      // Not available
+    } catch (e) {
+      console.log(`Path ${path} failed:`, e);
     }
   }
 
@@ -318,42 +349,47 @@ async function loadEmbeddedModel(): Promise<void> {
 
     console.log('Loading embedded AI model from APK assets...');
 
-    // Fetch embedded model from assets
-    let modelResponse: Response | null = null;
+    // Use the path that was discovered during checkEmbeddedModel()
+    // or try all paths if not set
+    const pathsToTry = workingModelPath
+      ? [workingModelPath]
+      : EMBEDDED_MODEL_PATHS;
 
-    // Try different paths that Capacitor might serve assets from
-    const pathsToTry = [
-      `/${EMBEDDED_MODEL_PATH}`,
-      `/public/${EMBEDDED_MODEL_PATH}`,
-      `file:///android_asset/public/${EMBEDDED_MODEL_PATH}`,
-    ];
+    let modelResponse: Response | null = null;
+    let successPath = '';
 
     for (const path of pathsToTry) {
       try {
+        console.log(`Attempting to load model from: ${path}`);
         const response = await fetch(path);
         if (response.ok) {
           modelResponse = response;
-          console.log(`Found embedded model at: ${path}`);
+          successPath = path;
+          console.log(`Successfully fetched model from: ${path}`);
           break;
+        } else {
+          console.log(`Path ${path} returned status: ${response.status}`);
         }
-      } catch {
+      } catch (e) {
+        console.log(`Path ${path} threw error:`, e);
         continue;
       }
     }
 
     if (!modelResponse) {
-      throw new Error('Could not load embedded model from any path');
+      throw new Error('Could not load embedded model from any path. Tried: ' + pathsToTry.join(', '));
     }
 
     const modelBlob = await modelResponse.blob();
-    console.log(`Embedded model size: ${(modelBlob.size / 1024 / 1024).toFixed(1)}MB`);
+    console.log(`Embedded model size: ${(modelBlob.size / 1024 / 1024).toFixed(1)}MB from ${successPath}`);
 
-    // Verify the model size
+    // Verify the model size (should be ~92MB for SmolLM2-135M-Instruct-Q4_K_M)
     if (modelBlob.size < 50 * 1024 * 1024) {
-      throw new Error('Embedded model file appears corrupted (too small)');
+      throw new Error(`Embedded model file appears corrupted (size: ${modelBlob.size} bytes, expected >50MB)`);
     }
 
     const modelArrayBuffer = await modelBlob.arrayBuffer();
+    console.log('Model loaded into memory, initializing wllama...');
 
     // Initialize wllama
     wllamaInstance = new Wllama({
@@ -363,11 +399,14 @@ async function loadEmbeddedModel(): Promise<void> {
       useMultiThread: false,
     });
 
+    console.log('Wllama initialized, loading model buffer...');
+
     // Load model from array buffer
     await wllamaInstance.loadModelFromBuffer(new Uint8Array(modelArrayBuffer));
 
     modelLoaded = true;
     embeddedModelAvailable = true;
+    workingModelPath = successPath; // Remember this path
     setStatus({ type: 'ready' });
     console.log('Embedded AI model loaded successfully!');
   } catch (error) {
