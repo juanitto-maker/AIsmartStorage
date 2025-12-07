@@ -13,10 +13,14 @@ export const ChatPanel: Component = () => {
 
   const messages = () => chatStore.messages();
   const isProcessing = () => chatStore.isProcessing();
+  const modelLoading = () => chatStore.modelLoading();
+  const modelStatus = () => chatStore.modelStatus();
 
-  // Initialize history store on mount
+  // Initialize history store and AI model on mount
   onMount(async () => {
     await historyStore.init();
+    // Initialize AI model in background
+    chatStore.initAI();
   });
 
   // Auto-scroll to bottom when new messages arrive
@@ -43,9 +47,18 @@ export const ChatPanel: Component = () => {
           <div class="flex items-center gap-2">
             <MessageCircleIcon size={20} class="text-accent-info" />
             <h2 class="text-sm font-semibold text-dark-100">AI Assistant</h2>
-            <span class="px-2 py-0.5 bg-accent-success/20 text-accent-success text-xs rounded-full">
-              Local
-            </span>
+            <Show
+              when={!modelLoading()}
+              fallback={
+                <span class="px-2 py-0.5 bg-accent-warning/20 text-accent-warning text-xs rounded-full animate-pulse">
+                  Loading...
+                </span>
+              }
+            >
+              <span class="px-2 py-0.5 bg-accent-success/20 text-accent-success text-xs rounded-full">
+                {modelStatus()?.modelName || 'SmolLM2'}
+              </span>
+            </Show>
           </div>
           <button
             onClick={handleClearChat}

@@ -8,22 +8,37 @@
 )]
 
 mod commands;
+mod model;
 mod storage;
 
 use tauri::Manager;
 
 fn main() {
+    // Create shared model state for AI inference
+    let model_state = model::create_shared_state();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .manage(model_state)
         .invoke_handler(tauri::generate_handler![
+            // File commands
             commands::files::list_files,
             commands::files::get_file_info,
             commands::files::move_file,
             commands::files::create_folder,
+            // Organization commands
             commands::organize::generate_plan,
             commands::organize::apply_plan,
+            // History commands
             commands::history::get_history,
             commands::history::undo_batch,
+            // AI commands
+            commands::ai::check_model_status,
+            commands::ai::assemble_model,
+            commands::ai::load_model,
+            commands::ai::chat,
+            commands::ai::unload_model,
+            commands::ai::get_model_info,
         ])
         .setup(|app| {
             // Initialize database
@@ -35,6 +50,7 @@ fn main() {
 
             println!("Smart Storage AI initialized");
             println!("Database: {:?}", db_path);
+            println!("Model will be stored at: {:?}", app_data_dir.join("smollm2-135m-instruct.gguf"));
 
             Ok(())
         })
