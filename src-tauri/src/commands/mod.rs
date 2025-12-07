@@ -5,3 +5,4 @@
 pub mod files;
 pub mod organize;
 pub mod history;
+pub mod ai;

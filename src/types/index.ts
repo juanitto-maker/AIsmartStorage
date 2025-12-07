@@ -112,6 +112,29 @@ export interface HistoryBatch {
 }
 
 // ----------------------------------------------------------------------------
+// AI Model Status Types
+// ----------------------------------------------------------------------------
+
+export type AiStatusType =
+  | 'not_downloaded'
+  | 'downloading'
+  | 'loading'
+  | 'ready'
+  | 'error';
+
+export interface AiStatus {
+  type: AiStatusType;
+  progress?: number;
+  message?: string;
+}
+
+export interface DownloadProgress {
+  downloaded: number;
+  total: number;
+  progress: number;
+}
+
+// ----------------------------------------------------------------------------
 // Chat & AI Types
 // ----------------------------------------------------------------------------
 

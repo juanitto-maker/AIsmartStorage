@@ -24,6 +24,12 @@ fn main() {
             commands::organize::apply_plan,
             commands::history::get_history,
             commands::history::undo_batch,
+            // AI commands
+            commands::ai::check_model_status,
+            commands::ai::download_model,
+            commands::ai::load_model,
+            commands::ai::generate_response,
+            commands::ai::init_ai,
         ])
         .setup(|app| {
             // Initialize database
