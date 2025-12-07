@@ -1,0 +1,7 @@
+{
+  "model_name": "SmolLM2-135M-Instruct",
+  "download_url": "https://huggingface.co/Mungert/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf",
+  "file_name": "smollm2-135m-instruct-q4_k_m.gguf",
+  "size_bytes": 96408576,
+  "checksum_sha256": "4bd46e022f32b681ae1beba1030d9ad042a655e75239fe83267f5e3bba98801d"
+}

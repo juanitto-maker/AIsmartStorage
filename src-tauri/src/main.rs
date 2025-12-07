@@ -24,6 +24,13 @@ fn main() {
             commands::organize::apply_plan,
             commands::history::get_history,
             commands::history::undo_batch,
+            // Model download commands
+            commands::model::check_model_exists,
+            commands::model::get_model_config,
+            commands::model::download_model,
+            commands::model::cancel_download,
+            commands::model::delete_model,
+            commands::model::get_model_path,
         ])
         .setup(|app| {
             // Initialize database
