@@ -12,10 +12,49 @@ const MODEL_SIZE_MB = 92;
 const MODEL_STORAGE_KEY = 'smartstorage_ai_model';
 const MODEL_DOWNLOADED_KEY = 'smartstorage_model_downloaded';
 
+// Embedded model configuration (for Android APK)
+const EMBEDDED_MODEL_PATH = 'models/smollm2-135m-instruct-q4_k_m.gguf';
+let embeddedModelAvailable = false;
+
 // Check if running in Tauri environment
 const isTauri = () => {
   return typeof window !== 'undefined' && '__TAURI__' in window;
 };
+
+// Check if running in Capacitor (Android/iOS)
+const isCapacitor = () => {
+  return typeof window !== 'undefined' && 'Capacitor' in window;
+};
+
+// Check if embedded model is available (Android APK)
+async function checkEmbeddedModel(): Promise<boolean> {
+  if (!isCapacitor()) return false;
+
+  try {
+    // Try to fetch the embedded model from assets
+    const response = await fetch(`/${EMBEDDED_MODEL_PATH}`, { method: 'HEAD' });
+    if (response.ok) {
+      console.log('Embedded AI model found in APK assets');
+      embeddedModelAvailable = true;
+      return true;
+    }
+  } catch (e) {
+    // Try alternative path for Capacitor assets
+    try {
+      const altResponse = await fetch(`file:///android_asset/public/${EMBEDDED_MODEL_PATH}`, { method: 'HEAD' });
+      if (altResponse.ok) {
+        console.log('Embedded AI model found via file:// protocol');
+        embeddedModelAvailable = true;
+        return true;
+      }
+    } catch {
+      // Not available
+    }
+  }
+
+  console.log('No embedded AI model found, will use download');
+  return false;
+}
 
 // Dynamic import for Tauri APIs
 let invoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
@@ -170,11 +209,21 @@ async function init(): Promise<void> {
     return;
   }
 
-  // Web/Capacitor mode - check if model was previously downloaded
+  // Web/Capacitor mode - check for embedded model first, then cached model
   try {
+    // Check for embedded model in APK assets (Android)
+    const hasEmbeddedModel = await checkEmbeddedModel();
+    if (hasEmbeddedModel) {
+      setStatus({ type: 'loading' });
+      await loadEmbeddedModel();
+      setIsInitialized(true);
+      return;
+    }
+
+    // Fall back to checking if model was previously downloaded
     const modelExists = await checkModelDownloaded();
     if (modelExists) {
-      // Model exists, try to load it
+      // Model exists in cache, try to load it
       setStatus({ type: 'loading' });
       await loadWllamaModel();
     } else {
@@ -259,6 +308,78 @@ async function loadWllamaModelAlternative(): Promise<void> {
     console.error('Alternative loading failed:', error);
     setStatus({ type: 'error', message: 'Failed to load model. Please re-download.' });
     localStorage.removeItem(MODEL_DOWNLOADED_KEY);
+  }
+}
+
+// Load model from embedded APK assets
+async function loadEmbeddedModel(): Promise<void> {
+  try {
+    const { Wllama } = await import('@wllama/wllama');
+
+    console.log('Loading embedded AI model from APK assets...');
+
+    // Fetch embedded model from assets
+    let modelResponse: Response | null = null;
+
+    // Try different paths that Capacitor might serve assets from
+    const pathsToTry = [
+      `/${EMBEDDED_MODEL_PATH}`,
+      `/public/${EMBEDDED_MODEL_PATH}`,
+      `file:///android_asset/public/${EMBEDDED_MODEL_PATH}`,
+    ];
+
+    for (const path of pathsToTry) {
+      try {
+        const response = await fetch(path);
+        if (response.ok) {
+          modelResponse = response;
+          console.log(`Found embedded model at: ${path}`);
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    if (!modelResponse) {
+      throw new Error('Could not load embedded model from any path');
+    }
+
+    const modelBlob = await modelResponse.blob();
+    console.log(`Embedded model size: ${(modelBlob.size / 1024 / 1024).toFixed(1)}MB`);
+
+    // Verify the model size
+    if (modelBlob.size < 50 * 1024 * 1024) {
+      throw new Error('Embedded model file appears corrupted (too small)');
+    }
+
+    const modelArrayBuffer = await modelBlob.arrayBuffer();
+
+    // Initialize wllama
+    wllamaInstance = new Wllama({
+      'single-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@latest/esm/single-thread/wllama.wasm',
+      'multi-thread/wllama.wasm': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@latest/esm/multi-thread/wllama.wasm',
+    }, {
+      useMultiThread: false,
+    });
+
+    // Load model from array buffer
+    await wllamaInstance.loadModelFromBuffer(new Uint8Array(modelArrayBuffer));
+
+    modelLoaded = true;
+    embeddedModelAvailable = true;
+    setStatus({ type: 'ready' });
+    console.log('Embedded AI model loaded successfully!');
+  } catch (error) {
+    console.error('Failed to load embedded model:', error);
+    // Fall back to checking for cached model
+    embeddedModelAvailable = false;
+    const modelExists = await checkModelDownloaded();
+    if (modelExists) {
+      await loadWllamaModel();
+    } else {
+      setStatus({ type: 'error', message: 'Failed to load AI model. Please download.' });
+    }
   }
 }
 
@@ -407,6 +528,7 @@ function getModelInfo() {
     size: `${MODEL_SIZE_MB}MB`,
     url: MODEL_URL,
     description: '100% local processing - no data leaves your device',
+    embedded: embeddedModelAvailable,
   };
 }
 
