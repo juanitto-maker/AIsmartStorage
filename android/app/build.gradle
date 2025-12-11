@@ -18,8 +18,28 @@ android {
             noCompress 'gguf'
         }
     }
+    signingConfigs {
+        release {
+            def keystorePropertiesFile = rootProject.file('keystore.properties')
+            if (keystorePropertiesFile.exists()) {
+                def keystoreProperties = new Properties()
+                keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            } else {
+                // Fallback to debug signing for development builds
+                storeFile android.signingConfigs.debug.storeFile
+                storePassword android.signingConfigs.debug.storePassword
+                keyAlias android.signingConfigs.debug.keyAlias
+                keyPassword android.signingConfigs.debug.keyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
